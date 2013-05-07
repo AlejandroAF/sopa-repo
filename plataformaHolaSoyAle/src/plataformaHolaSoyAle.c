@@ -1,7 +1,7 @@
 /*
  ============================================================================
  Name        : plataformaHolaSoyAle.c
- Author      : 
+ Author      :
  Version     :
  Copyright   : Your copyright notice
  Description : Hello World in C, Ansi-style
@@ -117,4 +117,66 @@ void *atenderCliente(void *parametro)
     printf("%s\n", variable);
     return NULL;
 }
+int sockets_create_Server(int port)
+{
+	int socketFD;
+	struct sockaddr_in socketInfo;
+
+	if ((socketFD = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+	{
+		   printf("Error al crear el socket.\n");
+		   exit(-1);
+	}
+
+	socketInfo.sin_family = AF_INET;
+	socketInfo.sin_addr.s_addr = INADDR_ANY;
+	socketInfo.sin_port = htons(port);
+	bzero(&(socketInfo.sin_zero),8);
+	printf("Socket creado.\n");
+
+	if (REUSE)
+	{
+		int on = 1;
+		if (setsockopt(socketFD, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0)
+			printf("setsockopt of SO_REUSEADDR error\n");
+	}
+	// Asociar puerto
+	bind(socketFD, (struct sockaddr*) &socketInfo, sizeof(socketInfo));
+
+	if (listen(socketFD, MAXIMO_CLIENTES) == -1) {
+		printf("Error al escuchar por el puerto.\n");
+	}
+
+	printf("Escuchando conexiones entrantes.\n");
+
+	return socketFD;
+
+}
+
+
+
+int esperarConexion(int socketEscucha)
+{
+	int socketNuevaConexion;
+	if ((socketNuevaConexion = accept(socketEscucha, NULL, 0)) == -1) //se acepta la conexion
+		{
+			printf("Error al aceptar conexión.\n");
+			return -1;
+		}
+		//printf("se acepto la conexion \n");
+		return socketNuevaConexion;
+}
+
+void* lanzarHilo(void* paramHilo)
+{
+	pthread_t tid;
+	pthread_create(&tid,NULL,atenderCliente,paramHilo);
+	return 0;
+}
+
+int comparar(char *str1,const char *str2)
+{//compara si dos cadenas de caracteres son iguales
+	return !(strncmp(str1,str2,strlen(str2)));
+}
+
 
