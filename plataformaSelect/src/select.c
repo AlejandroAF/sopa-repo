@@ -151,8 +151,10 @@ void *threadPlanificador(void *parametro) {
 			    	   char*buffer=malloc(50);
 			    	   buffer[49]='\0';
 			    	   if(recv(vectorClientesConectados[i],buffer,49,0)>0){
-			    		   printf("%s\n",buffer);
-			    		   send(vectorClientesConectados[i],buffer,50,0); //devuelvo lo que recibi. hago un simple eco para probar la conexion
+			    		   if(comparar(buffer,"AUMOV")){
+			    			   send(vectorClientesConectados[i],"OK",50,0); //devuelvo lo que recibi. hago un simple eco para probar la conexion
+			    		   }
+			    		   else send(vectorClientesConectados[i],buffer,50,0); //devuelvo lo que recibi. hago un simple eco para probar la conexion
 			    	   }
 
 				   }

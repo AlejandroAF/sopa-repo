@@ -176,20 +176,22 @@ void *funcionHiloServer(void *parametro){
 		}
 		else if (comparar(variable,"ENTRE")) //entregar recurso
 		{
-
+				printf("me pide entrega de recurso\n");
 				recv((int)parametro, variable, 1, 0);
 
 				if(devuelveCantidadRecursos(listaItems,variable[0])>0)
 				{
-					send((int)parametro,buscarRecurso (listaItems , variable[0]) , sizeof(coordenadas), 0);
+					send((int)parametro,"OK"/*buscarRecurso (listaItems , variable[0])*/ ,3 /*sizeof(coordenadas)*/, 0);
 					restarRecurso(listaItems , variable[0]);
 				}
 
 		}
-		else if (comparar(variable,"MOVIM")) //solicitud de movimiento
+		else if (comparar(variable,"PPMOV")) //solicitud de movimiento
 		{
 					recv((int)parametro,movim,sizeof(coordenadas), 0);
+					printf("muevo la imagen\n");
 					MoverPersonaje(listaItems,personaje[0],movim->posX,movim->posY);
+
 		}
 		else if (comparar(variable,"FINIV"))
 		{
@@ -392,12 +394,13 @@ void leerArchivoDeConfiguracion()
 {
     FILE* arch=NULL;
 	char buffer[50];
-    if (( arch = fopen("/home/utnso/workspacePruebasTP/nivel/archnivel","r" )) ==NULL)
+    if (( arch = fopen("/home/utnso/git/tp-20131c-so-pa/Nivel/nivel","r" )) ==NULL)
     {
 	   printf("error al abrir del archivo\n");
     }
 
-	fgets(buffer,50,arch); //kjshdfkjshdkjf
+	fgets(buffer,50,arch);
+
 	while(!feof(arch))
 	{
 		parseo(buffer);

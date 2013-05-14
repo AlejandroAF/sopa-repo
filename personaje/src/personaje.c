@@ -18,9 +18,9 @@
 #include <unistd.h>
 #include <string.h>
 //-----------------------------------------------------------------------------
-#define PATH_CONFIG "/home/utnso/Escritorio/archivos_config"
+#define PATH_CONFIG "/home/utnso/git/tp-20131c-so-pa/personaje/archivos_config"
 #define BUFF_SIZE 1024
-#define MAX_NIVELES 100
+#define MAX_NIVELES 10
 #define IP_ORQUESTADOR "127.0.0.1"
 #define PUERTO_ORQUESTADOR 15000
 //-----------------------------------------------------------------------------
@@ -511,12 +511,15 @@ void jugarNivel(pndata *data){
 	nodo* listaObjetivosCompletados=malloc(sizeof(nodo*));
 	nodo *auxObjetivosNivel=niveles[nivelActual].ptrObjetivosNivel;
 	char *objetivo=malloc(sizeof(char)*2);
-	strcpy(objetivo,((char*)(auxObjetivosNivel->data)));
-	coordenadas posicion=pedirPosSiguienteObjetivo(socketNivel,objetivo);
 
+	coordenadas posicion;
+	int a,b;
+	a=b=0;
 	//si la lista de objetivos totales que esta en el vector no tiene la misma cantidad que la de objetivos completados sigo buscando nuevos recursos
-	while(contarNodos(listaObjetivosCompletados)!=contarNodos(niveles[nivelActual].ptrObjetivosNivel)){
-
+	while((a=(contarNodos(listaObjetivosCompletados)))!=(b=(contarNodos(niveles[nivelActual].ptrObjetivosNivel)+1))){
+			strcpy(objetivo,((char*)(auxObjetivosNivel->data)));
+			 printf("pido otro recurso %s\n",objetivo);
+			posicion=pedirPosSiguienteObjetivo(socketNivel,objetivo);
 			funcionMover(posicion.posX,posicion.posY,socketNivel,socketPlanificador);//mueve al personaje cuando el planificador se lo permite, modifica la posicion del mismo, le avisa al planificador que realizo un movimiento, le avisa al nivel para que lo grafique, todo esto paso por paso hasta que llega al recurso
 
 
@@ -529,8 +532,9 @@ void jugarNivel(pndata *data){
 	 }
 	 crearNodo(&listaObjetivosCompletados,objetivo);//inserto el objetivo obtenido en la lista de objetivos completados
 	 auxObjetivosNivel=auxObjetivosNivel->next; //busco el prox objetivo
-	 objetivo=((char*)(auxObjetivosNivel->data));
-	 posicion=pedirPosSiguienteObjetivo(socketNivel,objetivo);//pido la posicion del proximo objetivo
+
+
+
 	}
 }
 
@@ -543,6 +547,7 @@ void jugarTodosLosNiveles(){
 			{
 				pndata *puertosIp = obtenerEstructura();//le pide al orquestador el ip y puerto del planificador y los niveles
 				jugarNivel(puertosIp);
+				printf("termine el nivel\n");
 			}
 	}
 }
@@ -605,7 +610,7 @@ pndata* obtenerEstructura(){
 	int socketConexionOrquestador;
 	pndata *buffer=malloc(sizeof(pndata));
 
-	if (send(socketConexionOrquestador=sockets_create_Client(ip,atoi(puerto)),"NIVEL 004"/*niveles[nivelActual].niveles*/,10,0) < 0)//La variable niveles[nivelActual] hace referencia al nivel del q se quieren obtener los datos
+	if (send(socketConexionOrquestador=sockets_create_Client(ip,atoi(puerto)),niveles[nivelActual].niveles,10,0) < 0)//La variable niveles[nivelActual] hace referencia al nivel del q se quieren obtener los datos
 	{
 		perror("Error al enviar datos");
 	}
@@ -657,6 +662,7 @@ int pedirAutorizacionMovimiento(int socketConexionPlanificador)
 			{
 				if(comparar(buffer,"OK"))
 				{
+					printf("me autorizaron el movimiento\n");
 					return 1;
 
 				}
@@ -679,7 +685,7 @@ return -3;}
 void funcionMover(int posicionRecursoX,int posicionRecursoY,int socketNivel,int socketPlanificador)
 {
 	//La posicion del personaje está en variables globales
-	while(posX!=posicionRecursoX | posY!=posicionRecursoY)
+	while((posX!=posicionRecursoX) | (posY!=posicionRecursoY))
 	{
 		if(posX<posicionRecursoX )
 		{
@@ -698,6 +704,7 @@ void funcionMover(int posicionRecursoX,int posicionRecursoY,int socketNivel,int 
 			if(pedirAutorizacionMovimiento(socketPlanificador)){
 			posY--;}
 		}
+		printf("pos actual %d %d\n",posX,posY);
 		notificarMovimientoAlNivel(posX,posY,socketNivel);
 	}
 	//Se pediran instancias del recurso al planificador del nivel y si no hay recursos disponibles se bloquea
@@ -715,6 +722,8 @@ void notificarMovimientoAlNivel(int posicionX,int posicionY,int socketConexionNi
  memcpy(buffer,"PPMOV",5);
  memcpy(buffer+5,&bufferEstructura,sizeof(coordenadas));
  send(socketConexionNivel,buffer,13,0);
+
+
 }
 
 coordenadas pedirPosSiguienteObjetivo(int socketNivel,char *recurso){
@@ -729,6 +738,7 @@ coordenadas pedirPosSiguienteObjetivo(int socketNivel,char *recurso){
 		}
 
 			recv(socketNivel, &buffer,8, 0);
+			printf("el recurso esta ubicado en la posicion %d %d\n",buffer.posX,buffer.posY);
 			//close(socketNivel);
 
 			return buffer;
@@ -740,6 +750,7 @@ int pedirEntregaRecurso(int socketNivel,char *objetivo){
 	char buffer[3];//recibo OK
 	char *mensaje=malloc(sizeof(char)*7);
 	mensaje=strcat(strdup("ENTRE"),objetivo);
+	printf("entre prox recurso: %s\n",objetivo);
 
 		if (send(socketNivel,mensaje,6,0) < 0)
 		{
