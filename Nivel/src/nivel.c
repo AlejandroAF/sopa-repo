@@ -305,10 +305,11 @@ int registrarseEnPlataforma()
 	return 0;
 }
 
-void crearYDibujarItems(ITEM_NIVEL* listaItems)
+void crearYDibujarItems(ITEM_NIVEL* lista)
 {
 	int rows, cols;
-	int q, p;
+	int q;
+	int p;
 
 	int x = 1;
 	int y = 1;
@@ -320,14 +321,14 @@ void crearYDibujarItems(ITEM_NIVEL* listaItems)
 	q = rows;
 	p = cols;
 
-	CrearPersonaje(&listaItems, '@', q, p);
-	CrearPersonaje(&listaItems, '#', x, y);
+	CrearPersonaje(&lista, '@', q, p);
+	CrearPersonaje(&lista, '#', x, y);
 
-	CrearCaja(&listaItems, 'H', 20, 40, 5);
-	CrearCaja(&listaItems, 'M', 15, 8, 3);
-	CrearCaja(&listaItems, 'F', 9, 19, 2);
+	CrearCaja(&lista, 'H', 20, 40, 5);
+	CrearCaja(&lista, 'M', 15, 8, 3);
+	CrearCaja(&lista, 'F', 9, 19, 2);
 
-	nivel_gui_dibujar(listaItems);
+	nivel_gui_dibujar(lista);
 }
 
 coordenadas* buscarRecurso(ITEM_NIVEL* lista,char recurso)//busca el recurso pedido por el personaje y devuelve una posicion(struct)
@@ -358,8 +359,9 @@ void parseo(char* str)
   char* pch=NULL;
   pch=malloc(sizeof(char)*50);
   pch = strtok(str,"=");
-  /*//printf("%s\n",pch);
- // if(comparar(pch,"planDeNiveles"))//
+  printf("%s\n",pch);
+  /*
+  if(comparar(pch,"planDeNiveles"))
   {
 		int i;
 		pch = strtok(NULL,"[],");
