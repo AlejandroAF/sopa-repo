@@ -25,7 +25,8 @@
 #define PUERTOBASE_PLANIFICADOR 16000 //usamos el 15000. Hay que tener cuidado de no usar un puerto usado por otro proceso (ojo que el sistema operativo usa muchos).
 #define PUERTOORQUESTADOR 15000
 #define MAXIMO_CLIENTES 10      // El número máximo de conexiones permitidas  (máximo de clientes conectados simultáneamente a nuestro servidor).
-#define MAXIMODENIVELES 256
+#define MAXIMODENIVELES 2
+#define AGRANDAMIENTO 10//modifico
 
 //tipos
 typedef struct nodo{
@@ -62,10 +63,13 @@ void *hiloPlanificador (void *);
 int comparar(char*,const char*);
 int esperarConexion(int socketEscucha,struct sockaddr* datosDelCliente);
 void registrarNivelYlanzarHiloDePlanificador(int socketConexion);
+char* obtenerIP(int unSocket);
+void agrandarVectorPlataforma(pndata* vector,int nuevoTamanio);//modifico
 //------------------------------------fin prototipos
 //variables globales
 
 pndata niveles[MAXIMODENIVELES];
+int cantNivelesRegistrados=0;//modifico
 
 int main (){
 	int socketEscucha,socketNuevaConexion;
@@ -149,12 +153,20 @@ void registrarNivelYlanzarHiloDePlanificador(int socketConexion)
 	recv(socketConexion,buffer,5,0);
 	recv(socketConexion,&estructuraRegistro,sizeof(reg),0);
 
+	if(cantNivelesRegistrados>=MAXIMODENIVELES)//modifico
+	{
+		agrandarVectorPlataforma(niveles,MAXIMODENIVELES);
+	}
+
 	//registroNivel
-	strcpy(niveles[estructuraRegistro.nroNivel].ipNivel,estructuraRegistro.ip);
+	strcpy(niveles[estructuraRegistro.nroNivel].ipNivel,obtenerIP(socketConexion));
 	niveles[estructuraRegistro.nroNivel].puertoNIvel=estructuraRegistro.puerto;
 	strcpy(niveles[estructuraRegistro.nroNivel].ipPlanificador,"127.0.0.1");
 	niveles[estructuraRegistro.nroNivel].puertoPlanificador=estructuraRegistro.nroNivel+PUERTOBASE_PLANIFICADOR;
 	//fin registro nivel
+	cantNivelesRegistrados++;//modifico
+
+	send((int)socketConexion,"REGISTRADO", 11, 0);
 
 	//levanto thread planificador y le paso el puerto de escucha
 	pthread_t tid;
@@ -169,7 +181,27 @@ int comparar(char *str1,const char *str2)
 	return !(strncmp(str1,str2,strlen(str2)));
 }
 
-void obtenerIP(char ip[16],struct sockaddr_in datosDelCliente)
+char* obtenerIP(int unSocket)
 {
-	inet_ntop( AF_INET, &(datosDelCliente.sin_addr.s_addr), ip, INET_ADDRSTRLEN );
+	struct sockaddr_in addr;
+	char* ip=malloc(16);
+	socklen_t socklen = sizeof(addr);
+	if (getpeername(unSocket, (struct sockaddr*) &addr, &socklen) < 0) {
+			   printf("Error al retornar la IP del socket");
+			}
+			else {
+			    printf("IP: %s\n", inet_ntoa(addr.sin_addr));
+			}
+	strcpy(ip,inet_ntoa(addr.sin_addr));
+	return ip;
+	//inet_ntop( AF_INET, &(datosDelCliente.sin_addr.s_addr), ip, INET_ADDRSTRLEN );
 }
+
+void agrandarVectorPlataforma(pndata* vector,int nuevoTamanio)//modifico
+{
+	vector=NULL;
+	vector=realloc(vector,nuevoTamanio*sizeof (pndata));
+	nuevoTamanio=nuevoTamanio+AGRANDAMIENTO;
+}
+
+

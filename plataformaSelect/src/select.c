@@ -12,6 +12,8 @@
 
 #include "select.h"
 
+#define AGRANDAMIENTO 10
+
 typedef struct hiloplanificador{
 	int puerto;
 	int conexionNivel;
@@ -64,7 +66,9 @@ void agregarNuevaConexionEnVectorClientesConectados(int socketNuevaConexion,int*
 			vectorclientesconectados[i]=socketNuevaConexion;
 			return;//si pude agregarlo salgo inmediatamente
 		}
+
 	}
+	agrandarVectorSelect(vectorclientesconectados,*tamaniovector);//modificacion
 	//si no pude agregarlo es por que no tengo lugar en el vector; entonces agrando el vector y luego lo agrego
 
 }
@@ -80,7 +84,7 @@ void *threadPlanificador(void *parametro) {
 
 		hplan* estructura=(hplan*)parametro;
 		int tamanioVectorClientes=10;//seteo un valor inicial para tamanioVectorClientes
-		int vectorClientesConectados[tamanioVectorClientes];//el vector puede crecer en tiempo de ejecucion, por lo que tamanioVectorClientes es un parametro inicial
+		int vectorClientesConectados[tamanioVectorClientes];//modifico//el vector puede crecer en tiempo de ejecucion, por lo que tamanioVectorClientes es un parametro inicial
 	    fd_set readset, masterset;
 
 	    int socketEscucha = sockets_create_Server(estructura->puerto);
@@ -171,3 +175,11 @@ void *threadPlanificador(void *parametro) {
   return NULL;
 
 }
+
+void agrandarVectorSelect(int* vector,int nuevoTamanio)//modifico
+{
+	vector=NULL;
+	vector=realloc(vector,nuevoTamanio*sizeof (int));
+	nuevoTamanio=nuevoTamanio+AGRANDAMIENTO;
+}
+
