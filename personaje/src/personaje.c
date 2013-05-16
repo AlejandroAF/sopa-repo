@@ -70,8 +70,10 @@ int socketConexionOrquestador;
 int nivelActual; //indica la posicion del vector niveles en la cual estoy trabajando
 int posX,posY;   //indican las coordenadas X e Y de la pantalla de movimientos en donde el personaje esta parado actualmente
 //-------------------------------------------------------------------------------
-//   Prototipos de funciones
 
+/////// Prototipos de funciones  ////////////////////////////////////////////////////
+
+void finalizarNivel(int socketNivel);
 int notificarBloqueoPlanificador(int socketPlanificador,char *objetivo);
 void notificarMovimientoAlNivel(int posicionX,int posicionY,int socketConexionNivel);
 int pedirEntregaRecurso(int socketNivel,char *objetivo);
@@ -107,6 +109,9 @@ pndata* obtenerEstructura();
 //void conectarPersonaje(pndata* data);
 int pedirAutorizacionMovimiento(int);
 void funcionMover(int posicionRecursoX,int posicionRecursoY,int,int);
+void notificarPlataformaFin(int unSocket);
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int main() {
 
@@ -505,6 +510,9 @@ void jugarNivel(pndata *data){
 		socketPlanificador = sockets_create_Client(data->ipPlanificador,data->puertoPlanificador);
 		printf("me conecte al planificador\n");
 		socketNivel = sockets_create_Client(data->ipNivel,data->puertoNivel);
+		char buffer[6]="REGIS";
+		buffer[5]=*simbolo;
+		send(socketNivel,buffer,6,0);
 		printf("me conecte al planif y al nivel\n");
 	//-----------------------------------------------------------------------------
 	//creo una lista para saber los recursos ya obtenidos
@@ -517,7 +525,8 @@ void jugarNivel(pndata *data){
 	a=b=0;
 	//si la lista de objetivos totales que esta en el vector no tiene la misma cantidad que la de objetivos completados sigo buscando nuevos recursos
 	while((a=(contarNodos(listaObjetivosCompletados)))!=(b=(contarNodos(niveles[nivelActual].ptrObjetivosNivel)+1))){
-			strcpy(objetivo,((char*)(auxObjetivosNivel->data)));
+
+		strcpy(objetivo,((char*)(auxObjetivosNivel->data)));
 			 printf("pido otro recurso %s\n",objetivo);
 			posicion=pedirPosSiguienteObjetivo(socketNivel,objetivo);
 			funcionMover(posicion.posX,posicion.posY,socketNivel,socketPlanificador);//mueve al personaje cuando el planificador se lo permite, modifica la posicion del mismo, le avisa al planificador que realizo un movimiento, le avisa al nivel para que lo grafique, todo esto paso por paso hasta que llega al recurso
@@ -530,12 +539,15 @@ void jugarNivel(pndata *data){
 	 else {
 		 notificarBloqueoPlanificador(socketPlanificador,objetivo);//le digo al planificador que me ponga en la cola de bloqueados de ese recurso y me quedo esperando hasta que el planificador me diga que lo tengo disponible
 	 }
+	 sleep(1);
 	 crearNodo(&listaObjetivosCompletados,objetivo);//inserto el objetivo obtenido en la lista de objetivos completados
 	 auxObjetivosNivel=auxObjetivosNivel->next; //busco el prox objetivo
 
 
-
 	}
+	notificarPlataformaFin(socketPlanificador);
+
+	finalizarNivel(socketNivel);
 }
 
 void jugarTodosLosNiveles(){
@@ -714,14 +726,18 @@ void funcionMover(int posicionRecursoX,int posicionRecursoY,int socketNivel,int 
 
 void notificarMovimientoAlNivel(int posicionX,int posicionY,int socketConexionNivel)
 {
- char buffer[13];
+ char buffer[14];
+ char devolucion[3];
  //mandar una estructura coordenada
  coordenadas bufferEstructura;
  bufferEstructura.posX=posicionX;
  bufferEstructura.posY=posicionY;
  memcpy(buffer,"PPMOV",5);
  memcpy(buffer+5,&bufferEstructura,sizeof(coordenadas));
- send(socketConexionNivel,buffer,13,0);
+ memcpy(buffer+13,simbolo,1);
+ send(socketConexionNivel,buffer,14,0);
+ recv(socketConexionNivel,devolucion,3,0);
+ printf("recibi ppmov\n");
 
 
 }
@@ -781,7 +797,7 @@ int notificarBloqueoPlanificador(int socketPlanificador,char *objetivo){
 					{
 						return 1;
 
-					}else if(comparar(buffer,"NOAUT"))
+					}else
 					 {
 						return 0;
 					 }
@@ -804,7 +820,33 @@ int notificarBloqueoPlanificador(int socketPlanificador,char *objetivo){
 int obtenerOrquestardorDePlataforma(){
 	//falta definir esta funcion
 	return 1;}
+void finalizarNivel(int socketNivel){
+	char buffer[3];
+	send(socketNivel,"FINIV",5,0);
+	recv(socketNivel,buffer,3,0);
+}
 
+void notificarPlataformaFin(int unSocket)
+{
+	int cantidadRecursos;
+	nodo* aux=(nodo*)malloc(sizeof(nodo));
+	char buffer[3];
+
+	aux=niveles[nivelActual].ptrObjetivosNivel;
+	send(unSocket,"FINIV",6,0);
+	cantidadRecursos=contarNodos(niveles[nivelActual].ptrObjetivosNivel);
+	send(unSocket,&cantidadRecursos,4,0);
+
+	while(aux!=NULL)
+	{
+		send(unSocket,(char*)aux->data,sizeof(char),0);
+		aux=aux->next;
+	}
+
+	recv(unSocket,buffer,sizeof(buffer),0);
+	printf("%s\n",buffer);
+
+}
 
 
 

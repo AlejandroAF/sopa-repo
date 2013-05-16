@@ -63,24 +63,26 @@ int devuelveCantidadRecursos(ITEM_NIVEL* lista,char recurso);
 int nroNivel,puertoNivel,puertoOrquestador;
 char ipOrquestador[16];
 ITEM_NIVEL* listaItems=NULL;
+FILE *log=NULL;
 ////////////////////////////////////////////////////////////
 
 int main()
 {
+	log=fopen("/home/utnso/git/tp-20131c-so-pa/Nivel/logNivel","w+");
 	int socketEscucha,socketNuevaConexion;
 	leerArchivoDeConfiguracion();
 	registrarseEnPlataforma(listaItems); //comentado para poder probar interacción con personaje en el mismo puerto
 
 ////////////////////////////////////PARA PROBAR POSICIONES Y CANTIDADES DE RECURSO Y/O PERSONAJES/////////////////////////////
-	CrearPersonaje(&listaItems, '@', 1, 2);
-	CrearPersonaje(&listaItems, '#', 3, 4);
 
-	CrearCaja(&listaItems, 'H', 20, 40, 5);
-	CrearCaja(&listaItems, 'M', 15, 8, 3);
+
+
+	CrearCaja(&listaItems, 'H', 12, 32, 5);
+	CrearCaja(&listaItems, 'M', 10, 8, 3);
 	CrearCaja(&listaItems, 'F', 9, 19, 2);
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	//crearYDibujarItems(listaItems); //Además inicializa y dibuja la pantalla
+	crearYDibujarItems(listaItems); //Además inicializa y dibuja la pantalla
 
 	//¿Liberar memoria consumida para registro?
 
@@ -89,9 +91,11 @@ int main()
 	{
 		socketNuevaConexion = esperarConexion(socketEscucha);
 		lanzarHiloServer((void*)socketNuevaConexion);
+
 	}
 	pthread_exit(0);
-
+	nivel_gui_terminar();
+close(log);
 }
 
 int esperarConexion(int socketEscucha)
@@ -99,10 +103,10 @@ int esperarConexion(int socketEscucha)
 	int socketNuevaConexion;
 	if ((socketNuevaConexion = accept(socketEscucha, NULL, 0)) == -1) //se acepta la conexion
 		{
-			printf("Error al aceptar conexión.\n");
+			fprintf(log,"Error al aceptar conexión.\n");
 			return -1;
 		}
-		printf("se acepto la conexion \n");
+		fprintf(log,"se acepto la conexion \n");
 		return socketNuevaConexion;
 }
 
@@ -112,7 +116,7 @@ int sockets_create_Server(char *ip, int port) {
 	struct sockaddr_in socketInfo;
 
 	if ((socketFD = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		   printf("Error al crear el socket.\n");
+		   fprintf(log,"Error al crear el socket.\n");
 		   exit(-1);
 	}
 
@@ -120,23 +124,23 @@ int sockets_create_Server(char *ip, int port) {
 	socketInfo.sin_addr.s_addr = inet_addr(ip);
 	socketInfo.sin_port = htons(port);
 	bzero(&(socketInfo.sin_zero),8);
-	printf("Socket creado.\n");
+	fprintf(log,"Socket creado.\n");
 
 	if (REUSE)
 	{
 		int on = 1;
 		if (setsockopt(socketFD, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0)
-			printf("setsockopt of SO_REUSEADDR error\n");
+			fprintf(log,"setsockopt of SO_REUSEADDR error\n");
 	}
 
 	// Asociar puerto
 	bind(socketFD, (struct sockaddr*) &socketInfo, sizeof(socketInfo));
 
 	if (listen(socketFD, MAXIMO_CLIENTES) == -1) {
-		printf("Error al escuchar por el puerto.\n");
+		fprintf(log,"Error al escuchar por el puerto.\n");
 	}
 
-	printf("Escuchando conexiones entrantes.\n");
+	fprintf(log,"Escuchando conexiones entrantes.\n");
 
 	return socketFD;
 
@@ -156,7 +160,7 @@ void *funcionHiloServer(void *parametro){
 	variable[5]='\0';
 	time_t ticks = time(NULL);
 	coordenadas* movim = malloc(sizeof(coordenadas));
-	printf("se recibe la conexion de un personaje\n");
+	fprintf(log,"se recibe la conexion de un personaje\n");
     while(1)
     {
     	recv((int)parametro, variable, 5, 0);
@@ -167,7 +171,12 @@ void *funcionHiloServer(void *parametro){
 		}
 		else if(comparar(variable,"REGIS"))
 		{
-				recv((int)parametro,personaje,1,0);
+			fprintf(log,"se registra un personaje\n");
+				recv((int)parametro,variable,1,0);
+					personaje[0]=variable[5];
+
+				CrearPersonaje(&listaItems, variable[5], 0, 0);
+				nivel_gui_dibujar(listaItems);
 		}
 		else if (comparar(variable,"HORA"))
 		{
@@ -176,26 +185,40 @@ void *funcionHiloServer(void *parametro){
 		}
 		else if (comparar(variable,"ENTRE")) //entregar recurso
 		{
-				printf("me pide entrega de recurso\n");
+				fprintf(log,"me pide entrega de recurso\n");
 				recv((int)parametro, variable, 1, 0);
 
 				if(devuelveCantidadRecursos(listaItems,variable[0])>0)
 				{
-					send((int)parametro,"OK"/*buscarRecurso (listaItems , variable[0])*/ ,3 /*sizeof(coordenadas)*/, 0);
+					send((int)parametro,"OK" ,3 , 0);
 					restarRecurso(listaItems , variable[0]);
+				}
+				else {
+					send((int)parametro,"NO" ,3 , 0);
 				}
 
 		}
 		else if (comparar(variable,"PPMOV")) //solicitud de movimiento
 		{
+					char pj;
 					recv((int)parametro,movim,sizeof(coordenadas), 0);
-					printf("muevo la imagen\n");
-					MoverPersonaje(listaItems,personaje[0],movim->posX,movim->posY);
+					fprintf(log,"muevo la imagen\n");
+					recv((int)parametro,&pj,1,0);
+					//MoverPersonaje(listaItems,'@',movim->posX,movim->posY);
+					BorrarItem(&listaItems,personaje[0]);
+					CrearPersonaje(&listaItems, personaje[0], movim->posX, movim->posY);
+					nivel_gui_dibujar(listaItems);
+
+					//sleep(1);
+
+					send((int)parametro,"OK",3,0);
 
 		}
 		else if (comparar(variable,"FINIV"))
 		{
 					BorrarItem(&listaItems,personaje[0]);
+					send((int)parametro,"OK",3,0);
+					break;
 		}
 
     }
@@ -209,10 +232,10 @@ int sockets_create_Client(char *ip, int port)
 	int socketFD;
 	struct sockaddr_in socketInfo;
 
-	printf("Conectando...\n");
+	fprintf(log,"Conectando...\n");
 
 	if ((socketFD = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		   printf("Error al crear el socket.\n");
+		   fprintf(log,"Error al crear el socket.\n");
 		   exit(-1);
 	}
 
@@ -220,13 +243,13 @@ int sockets_create_Client(char *ip, int port)
 	socketInfo.sin_addr.s_addr = inet_addr(ip);
 	socketInfo.sin_port = htons(port);
 	bzero(&(socketInfo.sin_zero),8);
-	printf("Socket creado.\n");
+	fprintf(log,"Socket creado.\n");
 
 	while(connect(socketFD, (struct sockaddr*) &socketInfo, sizeof(socketInfo))==-1)
 	{
-		printf("Falló la conexión, esperará 1 seg. y se intentará nuevamente\n");
+		fprintf(log,"Falló la conexión, esperará 1 seg. y se intentará nuevamente\n");
 		sleep(1);
-		printf("Intentando reconectar...\n");
+		fprintf(log,"Intentando reconectar...\n");
 	}
 
 	return socketFD;
@@ -252,7 +275,7 @@ void chat(int param)
 						break;
 					}
 					//strlen(buffer);
-					printf("%s\n",strtok(buffer,"\r"));
+					fprintf(log,"%s\n",strtok(buffer,"\r"));
 		}
 
 		if(kbhit()>0)
@@ -296,7 +319,7 @@ int registrarseEnPlataforma()
 
 		if(comparar(buffer,"REGISTRADO"))
 		{
-			printf("El nivel se ha registrado exitosamente\n");
+			fprintf(log,"El nivel se ha registrado exitosamente\n");
 			return 1;
 
 		}
@@ -305,30 +328,32 @@ int registrarseEnPlataforma()
 	return 0;
 }
 
-void crearYDibujarItems(ITEM_NIVEL* lista)
+void crearYDibujarItems(ITEM_NIVEL* listaItems)
 {
 	int rows, cols;
-	int q;
-	int p;
+	int q, p;
 
-	int x = 1;
-	int y = 1;
+	//int x = 1;
+	//int y = 1;
 
 	nivel_gui_inicializar();
+
+
 
     nivel_gui_get_area_nivel(&rows, &cols);
 
 	q = rows;
 	p = cols;
 
-	CrearPersonaje(&lista, '@', q, p);
-	CrearPersonaje(&lista, '#', x, y);
 
-	CrearCaja(&lista, 'H', 20, 40, 5);
-	CrearCaja(&lista, 'M', 15, 8, 3);
-	CrearCaja(&lista, 'F', 9, 19, 2);
 
-	nivel_gui_dibujar(lista);
+//	CrearCaja(&listaItems, 'H', 20, 40, 5);
+//	CrearCaja(&listaItems, 'M', 15, 8, 3);
+//	CrearCaja(&listaItems, 'F', 9, 19, 2);
+
+
+	nivel_gui_dibujar(listaItems);
+
 }
 
 coordenadas* buscarRecurso(ITEM_NIVEL* lista,char recurso)//busca el recurso pedido por el personaje y devuelve una posicion(struct)
@@ -350,7 +375,7 @@ coordenadas* buscarRecurso(ITEM_NIVEL* lista,char recurso)//busca el recurso ped
    aux = aux->next;
   }
  }
-printf("%d %d\n",posRecurso->posX,posRecurso->posY);
+fprintf(log,"%d %d\n",posRecurso->posX,posRecurso->posY);
 return posRecurso;
 }
 
@@ -359,9 +384,8 @@ void parseo(char* str)
   char* pch=NULL;
   pch=malloc(sizeof(char)*50);
   pch = strtok(str,"=");
-  printf("%s\n",pch);
-  /*
-  if(comparar(pch,"planDeNiveles"))
+  /*//printf("%s\n",pch);
+ // if(comparar(pch,"planDeNiveles"))//
   {
 		int i;
 		pch = strtok(NULL,"[],");
@@ -398,7 +422,7 @@ void leerArchivoDeConfiguracion()
 	char buffer[50];
     if (( arch = fopen("/home/utnso/git/tp-20131c-so-pa/Nivel/nivel","r" )) ==NULL)
     {
-	   printf("error al abrir del archivo\n");
+	   fprintf(log,"error al abrir del archivo\n");
     }
 
 	fgets(buffer,50,arch);
@@ -409,14 +433,14 @@ void leerArchivoDeConfiguracion()
 
 		if(fgets(buffer,50,arch) == NULL)
 		{
-			printf("error al leer del archivo\n");
+			fprintf(log,"error al leer del archivo\n");
 		}
 
 	}
-	printf("nro nivel: %d\n",nroNivel);
-	printf("puerto nivel %d\n",puertoNivel);
-	printf("puerto orquestador %d\n",puertoOrquestador);
-	printf("ip orquestador %s\n",ipOrquestador);
+	fprintf(log,"nro nivel: %d\n",nroNivel);
+	fprintf(log,"puerto nivel %d\n",puertoNivel);
+	fprintf(log,"puerto orquestador %d\n",puertoOrquestador);
+	fprintf(log,"ip orquestador %s\n",ipOrquestador);
 }
 
 int devuelveCantidadRecursos(ITEM_NIVEL* lista,char recurso)
@@ -438,5 +462,4 @@ int devuelveCantidadRecursos(ITEM_NIVEL* lista,char recurso)
  }
 return cantidad;
 }
-
 

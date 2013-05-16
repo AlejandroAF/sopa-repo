@@ -19,6 +19,14 @@ typedef struct hiloplanificador{
 	int conexionNivel;
 } hplan;
 
+typedef struct nodo{
+	void *data;
+	struct nodo *next;
+} nodo;
+
+int comparar(char*,const char*);
+void crearNodo(nodo **lista,void *dato);
+
 int sockets_create_Server(int port) {
 
 	int socketFD;
@@ -53,10 +61,18 @@ int sockets_create_Server(int port) {
 
 }
 
-void actualizarDescriptorMaximo(int socketNuevaConexion,int* descr_max){
-	if (socketNuevaConexion>*descr_max){
-		*descr_max=socketNuevaConexion;
+void actualizarDescriptorMaximo(int socketEscucha, int *vectorclientesconectados, int tamaniovectorclientesconectados, int *descr_max){
+	int i;
+	int aux=0;
+	for(i=0;i<tamaniovectorclientesconectados;i++){//primero obtengo en aux el maximo del vector
+		if (aux<vectorclientesconectados[i]){
+			aux=vectorclientesconectados[i];
+		}
 	}
+	if (aux<socketEscucha){//obtengo el maximo entre el maximo del vector y el socketescucha
+		aux=socketEscucha;
+	}
+	*descr_max=aux;//el resultado es el maximo total
 }
 
 void agregarNuevaConexionEnVectorClientesConectados(int socketNuevaConexion,int* vectorclientesconectados,int *tamaniovector){
@@ -66,11 +82,23 @@ void agregarNuevaConexionEnVectorClientesConectados(int socketNuevaConexion,int*
 			vectorclientesconectados[i]=socketNuevaConexion;
 			return;//si pude agregarlo salgo inmediatamente
 		}
-
 	}
-	agrandarVectorSelect(vectorclientesconectados,*tamaniovector);//modificacion
+	agrandarVectorSelect(vectorclientesconectados,*tamaniovector);
 	//si no pude agregarlo es por que no tengo lugar en el vector; entonces agrando el vector y luego lo agrego
 
+}
+
+void cerrarConexionCliente(int socket,int* vectorclientesconectados,int tamaniovector){
+	int i=0;
+	for(i=0;i<tamaniovector;i++)
+	{
+		if (socket==vectorclientesconectados[i])
+		{
+			vectorclientesconectados[i]=0;//dejo libre la posicion del vector
+			close(socket);//cierro socket
+
+		}
+	}
 }
 
 void inicializarVectorEn0(int* vectorclientesconectados,int tamaniovector){
@@ -84,7 +112,7 @@ void *threadPlanificador(void *parametro) {
 
 		hplan* estructura=(hplan*)parametro;
 		int tamanioVectorClientes=10;//seteo un valor inicial para tamanioVectorClientes
-		int vectorClientesConectados[tamanioVectorClientes];//modifico//el vector puede crecer en tiempo de ejecucion, por lo que tamanioVectorClientes es un parametro inicial
+		int vectorClientesConectados[tamanioVectorClientes];//el vector puede crecer en tiempo de ejecucion, por lo que tamanioVectorClientes es un parametro inicial
 	    fd_set readset, masterset;
 
 	    int socketEscucha = sockets_create_Server(estructura->puerto);
@@ -103,10 +131,15 @@ void *threadPlanificador(void *parametro) {
 		FD_SET(socketEscucha, &masterset);//fundamental para que el masterset arranque con el socket de escucha
 
 		//agrego la conexion del nivel
-		FD_SET(estructura->conexionNivel,&masterset);
-		agregarNuevaConexionEnVectorClientesConectados(estructura->conexionNivel,vectorClientesConectados,&tamanioVectorClientes);
-		actualizarDescriptorMaximo(estructura->conexionNivel,&descr_max);
+		int socketNivel;
+		socketNivel=estructura->conexionNivel;
+		FD_SET(socketNivel,&masterset);
+		agregarNuevaConexionEnVectorClientesConectados(socketNivel,vectorClientesConectados,&tamanioVectorClientes);
+		actualizarDescriptorMaximo(socketEscucha,vectorClientesConectados,tamanioVectorClientes,&descr_max);
 		//fin agrego conexion nivel
+
+		//libero memoria de la estructura
+		free(estructura);
 
 		struct timeval TimeoutSelect; /* Ultimo parametro de select  */
 		TimeoutSelect.tv_sec = 0;
@@ -138,7 +171,7 @@ void *threadPlanificador(void *parametro) {
 					 socketNuevaConexion=accept(socketEscucha,0,0);
 					 agregarNuevaConexionEnVectorClientesConectados(socketNuevaConexion,vectorClientesConectados,&tamanioVectorClientes);
 					 FD_SET(socketNuevaConexion, &masterset);
-					 actualizarDescriptorMaximo(socketNuevaConexion,&descr_max);
+					 actualizarDescriptorMaximo(socketEscucha,vectorClientesConectados,tamanioVectorClientes,&descr_max);
 					 printf("se registro una nueva conexion\n");
 				 }
 
@@ -152,13 +185,46 @@ void *threadPlanificador(void *parametro) {
 
 						//recibo datos de ese socket. si recibo 0 bytes significa que el cliente cerro la conexion y tengo que sacarlo del vectorClientesConectados
 			    	    //luego proceso lo recibido y respondo o puedo esperar de recibir todo y despues responder todo junto.
-			    	   char*buffer=malloc(50);
-			    	   buffer[49]='\0';
-			    	   if(recv(vectorClientesConectados[i],buffer,49,0)>0){
-			    		   if(comparar(buffer,"AUMOV")){
-			    			   send(vectorClientesConectados[i],"OK",50,0); //devuelvo lo que recibi. hago un simple eco para probar la conexion
+			    	   char*buffer=malloc(5);
+			    	   int recibido;
+			    	   if((recibido=recv(vectorClientesConectados[i],buffer,5,0))>0)
+			    	   {
+			    		   if(comparar(buffer,"AUMOV"))
+			    		   {
+			    			   send(vectorClientesConectados[i],"OK",2,0); //devuelvo lo que recibi. hago un simple eco para probar la conexion
 			    		   }
-			    		   else send(vectorClientesConectados[i],buffer,50,0); //devuelvo lo que recibi. hago un simple eco para probar la conexion
+			    		   else if (comparar(buffer,"FINIV"))
+			    			   {
+			    				   int cantidadRecursos,j;
+			    				   char recurso;
+			    				   nodo* listaRecursosLiberados=(nodo*)malloc(sizeof(nodo));
+			    				   recv(vectorClientesConectados[i],&cantidadRecursos,4,0);
+
+			    				   for(j=0;j<cantidadRecursos;j++)
+			    				   {
+			    					   recv(vectorClientesConectados[i],&recurso,1,0);
+			    					   crearNodo(&listaRecursosLiberados,&recurso);
+			    				   }
+			    				   send(vectorClientesConectados[i],"OK",3,0);
+
+			    				   //Acá sigue desbloquear personajes y luego mandar los recursos sobrantes al nivel
+
+			    				   printf("Recibi recursos liberados \n");
+			    			   }
+
+
+			    		   else
+			    		   {
+			    			   send(vectorClientesConectados[i],buffer,50,0); //devuelvo lo que recibi. hago un simple eco para probar la conexion
+			    		   }
+
+			    	   }else if(recibido==0){
+			    		   //el cliente cerro la conexion
+			    		   if(vectorClientesConectados[i]==socketNivel){
+			    			   //aviso se cerro la conexion con el nivel, el planificador se cierra?
+			    		   }
+			    		   cerrarConexionCliente(vectorClientesConectados[i],vectorClientesConectados,tamanioVectorClientes);
+			    		   actualizarDescriptorMaximo(socketEscucha,vectorClientesConectados,tamanioVectorClientes,&descr_max);
 			    	   }
 
 				   }
@@ -183,3 +249,22 @@ void agrandarVectorSelect(int* vector,int nuevoTamanio)//modifico
 	nuevoTamanio=nuevoTamanio+AGRANDAMIENTO;
 }
 
+void crearNodo(nodo **lista,void *dato){
+	//crea un nodo para la lista de lineas parseadas en clave, valor
+	nodo *aux;
+	if(*lista==NULL){
+			*lista=malloc(sizeof(nodo));
+			(*lista)->data=dato;
+			(*lista)->next=NULL;
+	}else{
+			aux=*lista;
+
+			while(aux->next!=NULL){
+				aux=aux->next;
+			}
+
+			(aux->next)=malloc(sizeof(nodo));
+			(aux->next)->data=dato;
+			(aux->next)->next=NULL;
+	}
+}

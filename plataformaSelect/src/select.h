@@ -10,12 +10,11 @@
 
 
 int sockets_create_Server(int port);
-void actualizarDescriptorMaximo(int socketNuevaConexion,int* descr_max);
+void actualizarDescriptorMaximo(int socketEscucha, int *vectorclientesconectados, int tamaniovectorclientesconectados, int *descr_max);
 void agregarNuevaConexionEnVectorClientesConectados(int socketNuevaConexion,int* vectorclientesconectados,int *tamaniovector);
 void inicializarVectorEn0(int* vectorclientesconectados,int tamaniovector);
 void *threadPlanificador(void *parametro);
-
-
+void agrandarVectorSelect(int* vector,int nuevoTamanio);
 
 
 #endif /* SELECT_H_ */
